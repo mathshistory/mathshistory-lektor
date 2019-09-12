@@ -11,8 +11,8 @@ import { BasicWidgetMixin } from './widgets/mixins'
 import Component from './components/Component'
 import ToggleGroup from './components/ToggleGroup'
 import i18n from './i18n'
-import { BBCodeEditor, BBCodeInlineEditor } from './components/bbcodeWidget'
-import TagsWidget from './components/tagsWidget'
+import { BBCodeEditor, BBCodeInlineEditor } from './widgets/bbcodeWidget'
+import TagsWidget from './widgets/tagsWidget'
 import chooserWidget from './widgets/chooserWidget'
 
 const widgetComponents = {
