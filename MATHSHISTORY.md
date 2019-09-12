@@ -8,3 +8,4 @@ The modifications are as below:
 
 - BBCode and inline BBCode widget
 - Tagging dropdown widget
+- Chooser (alternative to flow) widget
