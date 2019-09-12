@@ -11,8 +11,11 @@ import { BasicWidgetMixin } from './widgets/mixins'
 import Component from './components/Component'
 import ToggleGroup from './components/ToggleGroup'
 import i18n from './i18n'
+import { BBCodeEditor, BBCodeInlineEditor } from './components/bbcodeWidget'
 
 const widgetComponents = {
+  'bbcode': BBCodeEditor,
+  'bbcodeinline': BBCodeInlineEditor,
   'singleline-text': primitiveWidgets.SingleLineTextInputWidget,
   'multiline-text': primitiveWidgets.MultiLineTextInputWidget,
   'datepicker': primitiveWidgets.DateInputWidget,
