@@ -7,3 +7,4 @@ of custom React widgets used by the admin GUI.
 The modifications are as below:
 
 - BBCode and inline BBCode widget
+- Tagging dropdown widget

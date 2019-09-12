@@ -12,8 +12,10 @@ import Component from './components/Component'
 import ToggleGroup from './components/ToggleGroup'
 import i18n from './i18n'
 import { BBCodeEditor, BBCodeInlineEditor } from './components/bbcodeWidget'
+import TagsWidget from './components/tagsWidget'
 
 const widgetComponents = {
+  'tags': TagsWidget,
   'bbcode': BBCodeEditor,
   'bbcodeinline': BBCodeInlineEditor,
   'singleline-text': primitiveWidgets.SingleLineTextInputWidget,
