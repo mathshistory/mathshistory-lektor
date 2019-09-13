@@ -8,7 +8,6 @@ function transformTags (tags) {
     id: idx,
     name: tag
   }))
-  console.log(t)
   return t
 }
 
@@ -37,7 +36,6 @@ class TagsWidget extends React.Component {
   }
 
   render () {
-    console.log(this.props)
     return (
       <ReactTags
         tags={this.props.value}

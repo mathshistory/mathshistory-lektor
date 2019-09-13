@@ -172,9 +172,6 @@ const isCodeHotkey = isKeyHotkey('mod+`')
  */
 
 class BBCodeEditor extends React.Component {
-  componentWillUnmount() {
-    console.log('will unmount', this.props.value)
-  }
   constructor (props) {
     super(props)
 
@@ -213,9 +210,8 @@ class BBCodeEditor extends React.Component {
     if (value.trim() === '' && this.props.type !== 'inline') {
       value = '[p][/p]'
     }
-    console.log('start deserialize')
+
     let deserialized = bbcode.deserialize(value, { type: this.props.type === 'inline' ? 'inline' : 'block' })
-    console.log('end deserialize')
     if (this.props.type === 'inline') {
       deserialized.document.nodes = [
         {
