@@ -1,17 +1,21 @@
 import os
 import posixpath
+import traceback
 
 import click
 from flask import Blueprint, jsonify, request, g, current_app
+from flask_executor import Executor
 
 from lektor._compat import iteritems, itervalues
 from lektor.utils import is_valid_id
 from lektor.admin.utils import eventstream
 from lektor.publisher import publish, PublishError
 from lektor.environment import PRIMARY_ALT
+from lektor.reporter import CliReporter
 
 
 bp = Blueprint('api', __name__, url_prefix='/admin/api')
+executor = None
 
 
 def get_record_and_parent(path):
@@ -318,6 +322,63 @@ def publish_build():
             yield {'msg': 'Error: %s' % e}
     return generator()
 
+
+def buildpublish(server):
+    # run the build
+    builder = current_app.lektor_info.get_builder()
+    env = current_app.lektor_info.env
+    builder.build_all()
+    builder.prune()
+
+    # and then the publish
+    db = g.admin_context.pad.db
+    config = db.env.load_config()
+    server_info = config.get_server(server)
+    info = current_app.lektor_info
+    event_iter = publish(info.env, server_info.target,
+                         info.output_path, server_info=server_info) or ()
+    for event in event_iter:
+        pass
+
+    # mark this as done
+    return True
+
+@bp.route('/buildpublish-start', methods=['POST'])
+def buildpublish_start():
+    global executor
+    if executor == None:
+        executor = Executor(current_app)
+
+    # if build already in progress, dont start another one
+    if executor.futures._state('buildpublish') == 'RUNNING':
+        return jsonify(okay=False, error='Build already in progress')
+
+    # get server to publish to
+    server = request.form.get('server') or None
+    if server == None:
+        return jsonify(okay=False, error='No server specified to publish to')
+
+    # start a build-publish
+    executor.submit_stored('buildpublish', buildpublish, server)
+    return jsonify(okay=True)
+
+@bp.route('/buildpublish-result')
+def buildpublish_result():
+    global executor
+    if executor == None:
+        executor = Executor(current_app)
+
+    # if no build occurring, report that
+    if executor.futures._state('buildpublish') == None:
+        return jsonify(okay=False, error='No build currently in progress')
+
+    # if build already in progress, dont start another one
+    if not executor.futures.done('buildpublish'):
+        return jsonify(okay=True, done=False, status=executor.futures._state('buildpublish'))
+
+    # if build finished, pop it off executor, and report back
+    executor.futures.pop('buildpublish')
+    return jsonify(okay=True, done=True)
 
 @bp.route('/ping')
 def ping():
