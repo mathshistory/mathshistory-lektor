@@ -20,6 +20,8 @@ class Publish extends Component {
       log: [],
       currentState: 'IDLE'
     }
+    this.intervalId = null
+    this.onInterval = this.onInterval.bind(this)
   }
 
   componentDidMount () {
@@ -48,6 +50,21 @@ class Publish extends Component {
             ? servers[0].id
             : null
         })
+
+        this.getPublishState()
+      })
+  }
+
+  getPublishState () {
+    utils.apiRequest('/buildpublish-result', {}, makeRichPromise)
+      .then((resp) => {
+        if (resp.okay) {
+          // we're still publishing
+          this.setState({
+            currentState: 'BUILDING'
+          })
+          this.intervalId = window.setInterval(this.onInterval, 2000)
+        }
       })
   }
 
@@ -57,47 +74,49 @@ class Publish extends Component {
   }
 
   onPublish () {
-    if (this.isSafeToPublish()) {
-      this._beginBuild()
-    }
+    const server = encodeURIComponent(this.state.activeTarget)
+
+    utils.apiRequest('/buildpublish-start', { data: { server: server }, method: 'POST' }, makeRichPromise)
+      .then((resp) => {
+        if (resp.okay) {
+          this.setState({
+            currentState: 'BUILDING'
+          })
+
+          // start the interval
+          this.intervalId = window.setInterval(this.onInterval, 2000)
+        } else {
+          this.setState({
+            currentState: 'ERROR'
+          })
+        }
+      })
+  }
+
+  onInterval () {
+    utils.apiRequest('/buildpublish-result', {}, makeRichPromise)
+      .then((resp) => {
+        console.log(resp)
+        if (!resp.okay) {
+          window.clearInterval(this.intervalId)
+          this.setState({
+            currentState: 'ERROR'
+          })
+        }
+
+        if (resp.done) {
+          console.log('done!')
+          window.clearInterval(this.intervalId)
+          console.log('cleared interval', this.intervalId)
+          this.setState({
+            currentState: 'DONE'
+          })
+        }
+      })
   }
 
   onCancel () {
     dialogSystem.dismissDialog()
-  }
-
-  _beginBuild () {
-    this.setState({
-      log: [],
-      currentState: 'BUILDING'
-    })
-    utils.apiRequest('/build', {
-      method: 'POST'
-    }, makeRichPromise).then((resp) => {
-      this._beginPublish()
-    })
-  }
-
-  _beginPublish () {
-    this.setState({
-      currentState: 'PUBLISH'
-    })
-
-    const es = new EventSource(utils.getApiUrl('/publish') +
-      '?server=' + encodeURIComponent(this.state.activeTarget))
-    es.addEventListener('message', (event) => {
-      const data = JSON.parse(event.data)
-      if (data === null) {
-        this.setState({
-          currentState: 'DONE'
-        })
-        es.close()
-      } else {
-        this.setState({
-          log: this.state.log.concat(data.msg)
-        })
-      }
-    })
   }
 
   onSelectServer (event) {

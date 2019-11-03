@@ -79,6 +79,7 @@
   "PUBLISH_STATE_BUILDING": "Changes are being built ...",
   "PUBLISH_STATE_PUBLISH": "Changes are being published ...",
   "PUBLISH_STATE_DONE": "Publishing done.",
+  "PUBLISH_STATE_ERROR": "Publishing error.",
   "FIND_FILES": "Find Files",
   "FIND_FILES_PLACEHOLDER": "Enter page name ...",
   "ATTACHMENT_TYPE": "Attachment type",
