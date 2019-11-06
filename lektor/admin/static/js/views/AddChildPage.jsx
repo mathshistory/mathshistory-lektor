@@ -105,7 +105,7 @@ class AddChildPage extends RecordComponent {
     if (!this.state.newChildInfo.implied_model) {
       data['_model'] = this.state.selectedModel
     }
-    const primaryField = this.getPrimaryField()
+    const primaryField = false//this.getPrimaryField()
     if (primaryField) {
       data[primaryField.name] = this.state.primary
     }
@@ -171,7 +171,7 @@ class AddChildPage extends RecordComponent {
       )
     }
 
-    const primaryField = this.getPrimaryField()
+    const primaryField = false//this.getPrimaryField()
     if (primaryField) {
       addField('primary', primaryField)
     }
