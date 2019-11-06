@@ -54,9 +54,13 @@ class TagsWidget extends React.Component {
 }
 
 TagsWidget.deserializeValue = value => {
-  const deserialized = JSON.parse(value)
-  if (!Array.isArray(deserialized)) return []
-  return transformTags(deserialized)
+  try {
+    const deserialized = JSON.parse(value)
+    if (!Array.isArray(deserialized)) return []
+    return transformTags(deserialized)
+  } catch (e) {
+    return []
+  }
 }
 TagsWidget.serializeValue = value => {
   const serialized = JSON.stringify(value)
