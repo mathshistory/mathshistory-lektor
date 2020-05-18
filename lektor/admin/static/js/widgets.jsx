@@ -11,15 +11,10 @@ import { BasicWidgetMixin } from './widgets/mixins'
 import Component from './components/Component'
 import ToggleGroup from './components/ToggleGroup'
 import i18n from './i18n'
-import { BBCodeEditor, BBCodeInlineEditor } from './widgets/bbcodeWidget'
-import TagsWidget from './widgets/tagsWidget'
 import chooserWidget from './widgets/chooserWidget'
 
 const widgetComponents = {
   'chooser': chooserWidget.ChooserWidget,
-  'tags': TagsWidget,
-  'bbcode': BBCodeEditor,
-  'bbcodeinline': BBCodeInlineEditor,
   'singleline-text': primitiveWidgets.SingleLineTextInputWidget,
   'multiline-text': primitiveWidgets.MultiLineTextInputWidget,
   'datepicker': primitiveWidgets.DateInputWidget,
