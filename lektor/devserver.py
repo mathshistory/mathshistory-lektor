@@ -106,11 +106,11 @@ def run_server(bindaddr, env, output_path, prune=True, verbosity=0,
     extra_flags = process_extra_flags(extra_flags)
 
     if in_main_process:
-        background_builder = BackgroundBuilder(env, output_path=output_path,
+        '''background_builder = BackgroundBuilder(env, output_path=output_path,
                                                prune=prune, verbosity=verbosity,
                                                extra_flags=extra_flags)
         background_builder.setDaemon(True)
-        background_builder.start()
+        background_builder.start()'''
         env.plugin_controller.emit('server-spawn', bindaddr=bindaddr,
                                    extra_flags=extra_flags)
 
