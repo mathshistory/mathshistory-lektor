@@ -19,10 +19,15 @@ try:
     from functools import lru_cache
 except ImportError:
     from functools32 import lru_cache
+try:
+    from pathlib import PurePosixPath
+except ImportError:
+    from pathlib2 import PurePosixPath
 
 import click
 from jinja2 import is_undefined
 from markupsafe import Markup
+from slugify import slugify
 from werkzeug import urls
 from werkzeug.http import http_date
 from werkzeug.posixemulation import rename
@@ -41,7 +46,6 @@ _slashes_re = re.compile(r'(/\.{1,2}(/|$))|/')
 _last_num_re = re.compile(r'^(.*)(\d+)(.*?)$')
 _list_marker = object()
 _value_marker = object()
-_slug_re = re.compile(r'([a-zA-Z0-9.-_]+)')
 
 # Figure out our fs encoding, if it's ascii we upgrade to utf-8
 fs_enc = sys.getfilesystemencoding()
@@ -378,14 +382,6 @@ class WorkerPool(object):
         self.tasks.join()
 
 
-def slugify(value):
-    # XXX: not good enough
-    value_ascii = value.strip().encode('ascii', 'ignore').strip().decode()
-    rv = u' '.join(value_ascii.split()).lower()
-    words = _slug_re.findall(rv)
-    return '-'.join(words)
-
-
 class Url(object):
 
     def __init__(self, value):
@@ -529,21 +525,71 @@ def bool_from_string(val, default=None):
     return default
 
 
-def make_relative_url(base, target):
-    """Returns a relative URL from base to target."""
-    if base == '/':
-        depth = 0
-        prefix = './'
-    else:
-        depth = ('/' + base.strip('/')).count('/')
-        prefix = ''
+def make_relative_url(source, target):
+    """
+    Returns the relative path (url) needed to navigate
+    from `source` to `target`.
+    """
 
-    ends_in_slash = target[-1:] == '/'
-    target = posixpath.normpath(posixpath.join(base, target))
-    if ends_in_slash and target[-1:] != '/':
-        target += '/'
+    # WARNING: this logic makes some unwarranted assumptions about
+    # what is a directory and what isn't. Ideally, this function
+    # would be aware of the actual filesystem.
+    s_is_dir = source.endswith("/")
+    t_is_dir = target.endswith("/")
 
-    return (prefix + '../' * depth).rstrip('/') + target
+    source = PurePosixPath(posixpath.normpath(source))
+    target = PurePosixPath(posixpath.normpath(target))
+
+    if not s_is_dir:
+        source = source.parent
+
+    relpath = str(get_relative_path(source, target))
+    if t_is_dir:
+        relpath += "/"
+
+    return relpath
+
+
+def get_relative_path(source, target):
+    """
+    Returns the relative path needed to navigate from `source` to `target`.
+
+    get_relative_path(source: PurePosixPath,
+                      target: PurePosixPath) -> PurePosixPath
+    """
+
+    if not source.is_absolute() and target.is_absolute():
+        raise ValueError("Cannot navigate from a relative path"
+                         " to an absolute one")
+
+    if source.is_absolute() and not target.is_absolute():
+        # nothing to do
+        return target
+
+    if source.is_absolute() and target.is_absolute():
+        # convert them to relative paths to simplify the logic
+        source = source.relative_to("/")
+        target = target.relative_to("/")
+
+    # is the source an ancestor of the target?
+    try:
+        return target.relative_to(source)
+    except ValueError:
+        pass
+
+    # even if it isn't, one of the source's ancestors might be
+    # (and if not, the root will be the common ancestor)
+    distance = PurePosixPath(".")
+    for ancestor in source.parents:
+        distance /= ".."
+
+        try:
+            relpath = target.relative_to(ancestor)
+        except ValueError:
+            continue
+        else:
+            # prepend the distance to the common ancestor
+            return distance / relpath
 
 
 def get_structure_hash(params):

@@ -1,10 +1,9 @@
 'use strict'
 
-import PropTypes from 'prop-types'
 import React from 'react'
-import Component from './Component'
+import PropTypes from 'prop-types'
 
-class ToggleGroup extends Component {
+class ToggleGroup extends React.Component {
   constructor (props) {
     super(props)
     this.state = {
@@ -31,8 +30,12 @@ class ToggleGroup extends Component {
     return (
       <div className={className} {...otherProps}>
         <div className='header'>
-          <h4 className='toggle' onClick={
-            this.toggle.bind(this)}>{groupTitle}</h4>
+          <h4
+            className='toggle' onClick={
+              this.toggle.bind(this)
+            }
+          >{groupTitle}
+          </h4>
         </div>
         <div className='children'>
           {children}

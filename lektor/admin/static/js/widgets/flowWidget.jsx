@@ -3,10 +3,9 @@
 /* eslint-env browser */
 
 import React from 'react'
-import createReactClass from 'create-react-class'
 import i18n from '../i18n'
 import metaformat from '../metaformat'
-import { BasicWidgetMixin } from './mixins'
+import { widgetPropTypes } from './mixins'
 import userLabel from '../userLabel'
 import widgets from '../widgets'
 
@@ -20,9 +19,9 @@ const getWidgets = () => {
 }
 
 const parseFlowFormat = (value) => {
-  let blocks = []
+  const blocks = []
   let buf = []
-  let lines = value.split(/\r?\n/)
+  const lines = value.split(/\r?\n/)
   let block = null
 
   for (const line of lines) {
@@ -79,8 +78,8 @@ const serializeFlowFormat = (blocks) => {
 }
 
 const deserializeFlowBlock = (flowBlockModel, lines, localId) => {
-  let data = {}
-  let rawData = {}
+  const data = {}
+  const rawData = {}
 
   metaformat.tokenize(lines).forEach((item) => {
     const [key, lines] = item
@@ -91,8 +90,8 @@ const deserializeFlowBlock = (flowBlockModel, lines, localId) => {
   flowBlockModel.fields.forEach((field) => {
     let value = rawData[field.name] || ''
     const Widget = getWidgetComponent(field.type)
-    if (!value && field['default']) {
-      value = field['default']
+    if (!value && field.default) {
+      value = field.default
     }
     if (Widget && Widget.deserializeValue) {
       value = Widget.deserializeValue(value, field.type)
@@ -108,7 +107,7 @@ const deserializeFlowBlock = (flowBlockModel, lines, localId) => {
 }
 
 const serializeFlowBlock = (flockBlockModel, data) => {
-  let rv = []
+  const rv = []
   flockBlockModel.fields.forEach((field) => {
     const Widget = getWidgetComponent(field.type)
     if (Widget === null) {
@@ -129,38 +128,29 @@ const serializeFlowBlock = (flockBlockModel, data) => {
   return metaformat.serialize(rv)
 }
 
-// ever growing counter of block ids.  Good enough for what we do I think.
-let lastBlockId = 0
+export class FlowWidget extends React.Component {
+  static deserializeValue (value, type) {
+    let blockId = 0
+    return parseFlowFormat(value).map((item) => {
+      const [id, lines] = item
+      const flowBlock = type.flowblocks[id]
+      if (flowBlock !== undefined) {
+        return deserializeFlowBlock(flowBlock, lines, ++blockId)
+      }
+      return null
+    })
+  }
 
-const FlowWidget = createReactClass({
-  displayName: 'FlowWidget',
-  mixins: [BasicWidgetMixin],
+  static serializeValue (value) {
+    return serializeFlowFormat(value.map((item) => {
+      return [
+        item.flowBlockModel.id,
+        serializeFlowBlock(item.flowBlockModel, item.data)
+      ]
+    }))
+  }
 
-  statics: {
-    deserializeValue: (value, type) => {
-      return parseFlowFormat(value).map((item) => {
-        const [id, lines] = item
-        const flowBlock = type.flowblocks[id]
-        if (flowBlock !== undefined) {
-          return deserializeFlowBlock(flowBlock, lines, ++lastBlockId)
-        }
-        return null
-      })
-    },
-
-    serializeValue: (value) => {
-      return serializeFlowFormat(value.map((item) => {
-        return [
-          item.flowBlockModel.id,
-          serializeFlowBlock(item.flowBlockModel, item.data)
-        ]
-      }))
-    }
-  },
-
-  // XXX: the modification of props is questionable
-
-  moveBlock: function (idx, offset, event) {
+  moveBlock (idx, offset, event) {
     event.preventDefault()
 
     const newIndex = idx + offset
@@ -168,57 +158,64 @@ const FlowWidget = createReactClass({
       return
     }
 
-    const tmp = this.props.value[newIndex]
-    this.props.value[newIndex] = this.props.value[idx]
-    this.props.value[idx] = tmp
+    const newValue = [...this.props.value]
+    newValue[newIndex] = this.props.value[idx]
+    newValue[idx] = this.props.value[newIndex]
 
     if (this.props.onChange) {
-      this.props.onChange(this.props.value)
+      this.props.onChange(newValue)
     }
-  },
+  }
 
-  removeBlock: function (idx, event) {
+  removeBlock (idx, event) {
     event.preventDefault()
 
     if (confirm(i18n.trans('REMOVE_FLOWBLOCK_PROMPT'))) {
-      this.props.value.splice(idx, 1)
       if (this.props.onChange) {
-        this.props.onChange(this.props.value)
+        this.props.onChange(this.props.value.filter((item, i) => i !== idx))
       }
     }
-  },
+  }
 
-  addNewBlock: function (key, event) {
+  addNewBlock (key, event) {
     event.preventDefault()
 
     const flowBlockModel = this.props.type.flowblocks[key]
 
+    // find the first available id for this new block - use findMax + 1
+    const blockIds = this.props.value.map(block => block.localId)
+    const newBlockId = Math.max(...blockIds) + 1
+
     // this is a rather ugly way to do this, but hey, it works.
-    this.props.value.push(deserializeFlowBlock(flowBlockModel, [],
-      ++lastBlockId))
+    const newValue = [
+      ...this.props.value,
+      deserializeFlowBlock(flowBlockModel, [], newBlockId)
+    ]
     if (this.props.onChange) {
-      this.props.onChange(this.props.value)
+      this.props.onChange(newValue)
     }
-  },
+  }
 
-  collapseBlock: function (idx) {
-    this.props.value[idx].collapsed = true
+  collapseBlock (idx) {
+    const newValue = [...this.props.value]
+    newValue[idx] = { ...this.props.value[idx], collapsed: true }
     if (this.props.onChange) {
-      this.props.onChange(this.props.value)
+      this.props.onChange(newValue)
     }
-  },
+  }
 
-  expandBlock: function (idx) {
-    this.props.value[idx].collapsed = false
+  expandBlock (idx) {
+    const newValue = [...this.props.value]
+    newValue[idx] = { ...this.props.value[idx], collapsed: false }
     if (this.props.onChange) {
-      this.props.onChange(this.props.value)
+      this.props.onChange(newValue)
     }
-  },
+  }
 
-  renderFormField: function (blockInfo, field, idx) {
+  renderFormField (blockInfo, field, idx) {
     const widgets = getWidgets()
     const value = blockInfo.data[field.name]
-    let placeholder = field['default']
+    let placeholder = field.default
     const Widget = widgets.getWidgetComponentWithFallback(field.type)
     if (Widget.deserializeValue && placeholder != null) {
       placeholder = Widget.deserializeValue(placeholder, field.type)
@@ -226,7 +223,7 @@ const FlowWidget = createReactClass({
 
     const onChange = !this.props.onChange ? null : (value) => {
       blockInfo.data[field.name] = value
-      this.props.onChange(this.props.value)
+      this.props.onChange([...this.props.value])
     }
 
     return (
@@ -238,7 +235,7 @@ const FlowWidget = createReactClass({
         onChange={onChange}
       />
     )
-  },
+  }
 
   renderBlocks () {
     const widgets = getWidgets()
@@ -262,27 +259,31 @@ const FlowWidget = createReactClass({
               className='btn btn-default btn-xs'
               title={this.props.value[idx].collapsed ? i18n.trans('Expand') : i18n.trans('Collapse')}
               onClick={this.props.value[idx].collapsed
-                       ? this.expandBlock.bind(this, idx) : this.collapseBlock.bind(this, idx)}>
+                ? this.expandBlock.bind(this, idx) : this.collapseBlock.bind(this, idx)}
+            >
               <i className={this.props.value[idx].collapsed ? 'fa fa-expand' : 'fa fa-compress'} />
             </button>
             <button
               className='btn btn-default btn-xs'
               title={i18n.trans('UP')}
               disabled={idx === 0}
-              onClick={this.moveBlock.bind(this, idx, -1)}>
+              onClick={this.moveBlock.bind(this, idx, -1)}
+            >
               <i className='fa fa-fw fa-chevron-up' />
             </button>
             <button
               className='btn btn-default btn-xs'
               title={i18n.trans('DOWN')}
               disabled={idx >= this.props.value.length - 1}
-              onClick={this.moveBlock.bind(this, idx, 1)}>
+              onClick={this.moveBlock.bind(this, idx, 1)}
+            >
               <i className='fa fa-fw fa-chevron-down' />
             </button>
             <button
               className='btn btn-default btn-xs'
               title={i18n.trans('REMOVE')}
-              onClick={this.removeBlock.bind(this, idx)}>
+              onClick={this.removeBlock.bind(this, idx)}
+            >
               <i className='fa fa-fw fa-times' />
             </button>
           </div>
@@ -291,14 +292,14 @@ const FlowWidget = createReactClass({
         </div>
       )
     })
-  },
+  }
 
   renderAddBlockSection () {
-    let choices = []
+    const choices = []
 
     this.props.type.flowblock_order.forEach((key) => {
-      let flowBlockModel = this.props.type.flowblocks[key]
-      let label = flowBlockModel.button_label
+      const flowBlockModel = this.props.type.flowblocks[key]
+      const label = flowBlockModel.button_label
         ? userLabel.format(flowBlockModel.button_label)
         : userLabel.format(flowBlockModel.name_i18n)
       choices.push([flowBlockModel.id, label, i18n.trans(flowBlockModel.name_i18n)])
@@ -311,7 +312,9 @@ const FlowWidget = createReactClass({
           className='btn btn-default'
           onClick={this.addNewBlock.bind(this, key)}
           title={title}
-          key={key}>{label}</button>
+          key={key}
+        >{label}
+        </button>
       )
     })
 
@@ -323,7 +326,7 @@ const FlowWidget = createReactClass({
         </div>
       </div>
     )
-  },
+  }
 
   render () {
     let { className } = this.props
@@ -336,8 +339,5 @@ const FlowWidget = createReactClass({
       </div>
     )
   }
-})
-
-export default {
-  FlowWidget: FlowWidget
 }
+FlowWidget.propTypes = widgetPropTypes

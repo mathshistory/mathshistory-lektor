@@ -1,25 +1,26 @@
 'use strict'
 
 import React from 'react'
-import update from 'react-addons-update'
-import RecordEditComponent from '../components/RecordEditComponent'
-import utils from '../utils'
+import { Prompt } from 'react-router-dom'
+
+import RecordComponent from '../components/RecordComponent'
+import { apiRequest, loadData, isMetaKey } from '../utils'
 import i18n from '../i18n'
 import widgets from '../widgets'
 import makeRichPromise from '../richPromise'
 
-class EditPage extends RecordEditComponent {
+class EditPage extends RecordComponent {
   constructor (props) {
     super(props)
 
     this.state = {
-      recordInitialData: null,
       recordData: null,
       recordDataModel: null,
       recordInfo: null,
       hasPendingChanges: false
     }
     this._onKeyPress = this._onKeyPress.bind(this)
+    this.setFieldValue = this.setFieldValue.bind(this)
   }
 
   componentDidMount () {
@@ -28,16 +29,8 @@ class EditPage extends RecordEditComponent {
     window.addEventListener('keydown', this._onKeyPress)
   }
 
-  componentWillReceiveProps (nextProps) {
-    /*
-    if (nextProps.params.path !== this.props.params.path) {
-      this.syncEditor();
-    }
-    */
-  }
-
   componentDidUpdate (prevProps, prevState) {
-    if (prevProps.params.path !== this.props.params.path) {
+    if (prevProps.match.params.path !== this.props.match.params.path) {
       this.syncEditor()
     }
   }
@@ -46,13 +39,9 @@ class EditPage extends RecordEditComponent {
     window.removeEventListener('keydown', this._onKeyPress)
   }
 
-  hasPendingChanges () {
-    return this.state.hasPendingChanges
-  }
-
   _onKeyPress (event) {
     // meta+s is open find files
-    if (event.which === 83 && utils.isMetaKey(event)) {
+    if (event.which === 83 && isMetaKey(event)) {
       event.preventDefault()
       this.saveChanges()
     }
@@ -75,14 +64,25 @@ class EditPage extends RecordEditComponent {
   }
 
   syncEditor () {
-    utils.loadData('/rawrecord', {
+    loadData('/rawrecord', {
       path: this.getRecordPath(),
       alt: this.getRecordAlt()
     }, null, makeRichPromise)
       .then((resp) => {
+        // transform resp.data into actual data
+        const recordData = {}
+        resp.datamodel.fields.forEach(field => {
+          const widget = widgets.getWidgetComponentWithFallback(field.type)
+          let value = resp.data[field.name]
+          if (value !== undefined) {
+            if (widget.deserializeValue) {
+              value = widget.deserializeValue(value, field.type)
+            }
+            recordData[field.name] = value
+          }
+        })
         this.setState({
-          recordInitialData: resp.data,
-          recordData: {},
+          recordData,
           recordDataModel: resp.datamodel,
           recordInfo: resp.record_info,
           hasPendingChanges: false
@@ -90,10 +90,8 @@ class EditPage extends RecordEditComponent {
       })
   }
 
-  onValueChange (field, value) {
-    let updates = {}
-    updates[field.name] = { $set: value || '' }
-    const rd = update(this.state.recordData, updates)
+  setFieldValue (field, value) {
+    const rd = { ...this.state.recordData, [field.name]: value || '' }
     this.setState({
       recordData: rd,
       hasPendingChanges: true
@@ -101,7 +99,7 @@ class EditPage extends RecordEditComponent {
   }
 
   getValues () {
-    let rv = {}
+    const rv = {}
     this.state.recordDataModel.fields.forEach((field) => {
       if (this.isIllegalField(field)) {
         return
@@ -115,10 +113,7 @@ class EditPage extends RecordEditComponent {
           value = Widget.serializeValue(value, field.type)
         }
       } else {
-        value = this.state.recordInitialData[field.name]
-        if (value === undefined) {
-          value = null
-        }
+        value = null
       }
 
       rv[field.name] = value
@@ -131,10 +126,11 @@ class EditPage extends RecordEditComponent {
     const path = this.getRecordPath()
     const alt = this.getRecordAlt()
     const newData = this.getValues()
-    utils.apiRequest('/rawrecord', { json: {
-      data: newData, path: path, alt: alt },
-    // eslint-disable-next-line indent
-      method: 'PUT' }, makeRichPromise)
+    apiRequest('/rawrecord', {
+      json: { data: newData, path: path, alt: alt },
+      // eslint-disable-next-line indent
+      method: 'PUT'
+    }, makeRichPromise)
       .then((resp) => {
         this.setState({
           hasPendingChanges: false
@@ -155,7 +151,7 @@ class EditPage extends RecordEditComponent {
   getValueForField (widget, field) {
     let value = this.state.recordData[field.name]
     if (value === undefined) {
-      value = this.state.recordInitialData[field.name] || ''
+      value = ''
       if (widget.deserializeValue) {
         value = widget.deserializeValue(value, field.type)
       }
@@ -164,11 +160,11 @@ class EditPage extends RecordEditComponent {
   }
 
   getPlaceholderForField (widget, field) {
-    if (field['default'] !== null) {
+    if (field.default !== null) {
       if (widget.deserializeValue) {
-        return widget.deserializeValue(field['default'], field.type)
+        return widget.deserializeValue(field.default, field.type)
       }
-      return field['default']
+      return field.default
     } else if (field.name === '_slug') {
       return this.state.recordInfo.slug_format
     } else if (field.name === '_template') {
@@ -187,7 +183,7 @@ class EditPage extends RecordEditComponent {
         value={this.getValueForField(widget, field)}
         placeholder={this.getPlaceholderForField(widget, field)}
         field={field}
-        onChange={this.onValueChange.bind(this, field)}
+        setFieldValue={this.setFieldValue}
         disabled={!(field.alts_enabled == null || (field.alts_enabled ^ this.state.recordInfo.alt === '_primary'))}
       />
     )
@@ -210,8 +206,11 @@ class EditPage extends RecordEditComponent {
     let deleteButton = null
     if (this.state.recordInfo.can_be_deleted) {
       deleteButton = (
-        <button type='submit' className='btn btn-default'
-          onClick={this.deleteRecord.bind(this)}>{i18n.trans('DELETE')}</button>
+        <button
+          type='submit' className='btn btn-default'
+          onClick={this.deleteRecord.bind(this)}
+        >{i18n.trans('DELETE')}
+        </button>
       )
     }
 
@@ -225,11 +224,15 @@ class EditPage extends RecordEditComponent {
 
     return (
       <div className='edit-area'>
+        {this.state.hasPendingChanges && <Prompt message={() => i18n.trans('UNLOAD_ACTIVE_TAB')} />}
         <h2>{title.replace('%s', label)}</h2>
         {this.renderFormFields()}
         <div className='actions'>
-          <button type='submit' className='btn btn-primary'
-            onClick={this.saveChanges.bind(this)}>{i18n.trans('SAVE_CHANGES')}</button>
+          <button
+            type='submit' className='btn btn-primary'
+            onClick={this.saveChanges.bind(this)}
+          >{i18n.trans('SAVE_CHANGES')}
+          </button>
           {deleteButton}
         </div>
       </div>
